@@ -1,0 +1,10 @@
+FROM postgres:16-alpine
+
+# Run init.sql automatically on first container startup
+COPY init.sql /docker-entrypoint-initdb.d/01-init.sql
+
+# Healthcheck so docker-compose knows when the DB is truly ready
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}"
+
+EXPOSE 5432
