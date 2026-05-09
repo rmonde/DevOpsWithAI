@@ -18,9 +18,11 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-COPY books-service.py .
+
+COPY user-service.py .
+
 USER appuser
 
-EXPOSE 3001
+EXPOSE 3002
 
-CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "books_service:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3002", "--workers", "2", "user_service:app"]
