@@ -1,1 +1,28 @@
+# Secrets & environment variables
 .env
+.env.*
+*.pem
+*.key
+*.cert
+*.p12
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Docker
+*.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
