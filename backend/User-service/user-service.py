@@ -30,7 +30,7 @@ def create_user():
     data = request.get_json()
     conn = _get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", (data['name'], data['email']))
+    cur.execute("INSERT INTO users (name, password, email) VALUES (%s, %s, %s)", (data['name'], data['password'], data['email']))
     conn.commit()
     cur.close()
     conn.close()

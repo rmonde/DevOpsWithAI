@@ -1,0 +1,60 @@
+services:
+  auth-service:
+    build:
+      context: ./backend/Auth-service
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/Auth-service/.env
+    environment:
+      - DB_NAME=books_db
+    depends_on:
+      db-service:
+        condition: service_healthy
+  books-service:
+    build:
+      context: ./backend/Books-service
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend/Books-service/.env
+    environment:
+      - DB_NAME=books_db
+    depends_on:
+      db-service:
+        condition: service_healthy
+  user-service:
+    build:
+      context: ./backend/User-service
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./backend/User-service/.env
+    environment:
+      - DB_NAME=books_db
+    depends_on:
+      db-service:
+        condition: service_healthy
+  db-service:
+    build:
+      context: ./backend/DB-service
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: books_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
+
+networks:
+  default:
+    driver: bridge
