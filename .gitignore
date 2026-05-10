@@ -7,6 +7,18 @@
 *.p12
 secrets/
 
+# Kubernetes — secrets file contains base64-encoded credentials
+k8s/secret.yml
+
+# Terraform — state files can contain storage keys and resource metadata
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.backup
+# terraform.tfvars contains subscription ID — keep out of public repos
+# .terraform.lock.hcl is safe to commit (records provider versions), so not listed here
+Infrastructure/terraform.tfvars
+Infrastructure/bootstrap/terraform.tfvars
+
 # Python
 __pycache__/
 *.py[cod]

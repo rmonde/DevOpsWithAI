@@ -1,0 +1,8 @@
+subscription_id     = "<your-azure-subscription-id>"
+location            = "eastus"
+resource_group_name = "rg-devopswithai"
+cluster_name        = "aks-devopswithai"
+dns_prefix          = "devopswithai"
+node_count          = 1
+node_vm_size        = "Standard_D2s_v3"
+acr_registry_name   = "acrdevopswithai"
