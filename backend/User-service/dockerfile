@@ -19,7 +19,7 @@ COPY --from=builder /install /usr/local
 
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-COPY user-service.py .
+COPY user-service.py user_service.py
 
 USER appuser
 

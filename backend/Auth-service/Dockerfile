@@ -22,10 +22,10 @@ COPY --from=builder /install /usr/local
 # Create non-root user
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-COPY auth-service.py .
+COPY auth-service.py auth_service.py
 
 USER appuser
 
 EXPOSE 3000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "2", "auth-service:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "2", "auth_service:app"]
