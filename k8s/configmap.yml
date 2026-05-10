@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devopswithai-config
+data:
+  DATABASE_HOST: "db-service"
+  DATABASE_NAME: "books_db"
+  DATABASE_PORT: "5432"
