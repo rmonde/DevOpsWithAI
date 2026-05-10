@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "azure": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure/mcp@latest"],
+      "env": {
+        "AZURE_SUBSCRIPTION_ID": "<your-azure-subscription-id>"
+      }
+    },
+    "aks": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "<your-home-dir>/.azure:/home/mcp/.azure",
+        "-v", "<your-home-dir>/.kube:/home/mcp/.kube",
+        "ghcr.io/azure/aks-mcp:latest",
+        "--transport", "stdio",
+        "--access-level", "readwrite"
+      ],
+      "env": {
+        "AZURE_SUBSCRIPTION_ID": "<your-azure-subscription-id>"
+      }
+    }
+  }
+}
