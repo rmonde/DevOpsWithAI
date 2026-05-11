@@ -1,0 +1,96 @@
+name: Docker Build and Push CI
+
+# Triggers: validate every PR against main, push images only when code lands on main.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Explicitly restrict the GitHub Actions token to only what is needed.
+# id-token: write — required for OIDC login to Azure (no stored passwords).
+# contents: read  — required for actions/checkout.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    # strategy.matrix — instead of writing identical build steps 4 times (once per service),
+    # the matrix defines a list of variables. GitHub Actions reads the list and automatically
+    # spawns one independent job per entry, all running IN PARALLEL.
+    #
+    # Each job gets a unique value of matrix.service, so:
+    #   matrix.service.name    → "auth-service", "books-service", etc.
+    #   matrix.service.context → the correct Dockerfile directory for that service
+    #
+    # Benefits:
+    #   - Parallel execution: all 4 images build at the same time (~2 min total vs ~8 min sequential)
+    #   - Single source of truth: add a new service by adding one entry here, not copying 10 lines
+    #   - Independent failures: if books-service fails, auth-service still completes
+    strategy:
+      matrix:
+        service:
+          - name: auth-service
+            context: ./backend/Auth-service
+          - name: books-service
+            context: ./backend/Books-service
+          - name: user-service
+            context: ./backend/User-service
+          - name: db-service
+            context: ./backend/DB-service
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # OIDC Workload Identity Federation — GitHub requests a short-lived token from Azure
+      # per run. No static passwords stored in GitHub secrets.
+      # One-time setup required: create an Azure AD app + federated credential for this repo.
+      # Secrets needed in GitHub: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID.
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ACR_NAME is the short registry name (e.g. "acrdevopswithai"), not the full login server.
+      # az acr login uses the Azure token from the step above — no separate ACR password needed.
+      - name: Log in to ACR
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      # push condition: build on every PR (proves the Dockerfile is valid) but only push
+      # when the trigger is an actual merge to main — PRs must never write to the registry.
+      #
+      # Two tags are pushed on merge:
+      #   :github.sha — immutable, points to the exact commit that produced this image
+      #   :latest     — mutable, always points to the most recent main-branch image
+      #
+      # cache-from/cache-to: each service gets its own cache scope in the GitHub Actions cache.
+      # On a re-run, unchanged layers are restored from cache instead of rebuilt from scratch,
+      # cutting build time significantly. The scope key prevents services from overwriting
+      # each other's cache.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.name }}:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.name }}:latest
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+
+      # if: always() ensures logout runs even if a previous step failed,
+      # so the Azure session is never left active after the job ends.
+      - name: Log out from Azure
+        if: always()
+        run: az logout
