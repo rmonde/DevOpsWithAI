@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# This function checks if the provided username and password are valid by querying the PostgreSQL database.
 def valide_user_credentials(username: str, password: str) -> bool:
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST"),
