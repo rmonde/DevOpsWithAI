@@ -7,8 +7,9 @@
 *.p12
 secrets/
 
-# Kubernetes — secrets file contains base64-encoded credentials
+# Kubernetes — secrets files contain credentials
 k8s/secret.yml
+k8s/monitoring/grafana-secret.yml
 
 # Terraform — state files can contain storage keys and resource metadata
 **/.terraform/

@@ -1,0 +1,154 @@
+# kube-prometheus-stack Helm values
+# Chart: prometheus-community/kube-prometheus-stack
+# Docs: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+#
+# Install command:
+#   helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring \
+#     --values k8s/monitoring/kube-prometheus-stack-values.yaml \
+#     --set grafana.adminPassword=<your-password>
+
+# --------------------------------------------------------------------------
+# Prometheus
+# --------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # How long to keep metrics data. 7 days is sufficient for a learning cluster.
+    retention: 7d
+
+    # Persist metrics to a managed Azure disk so data survives pod restarts.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+    # Resource limits tuned for a single Standard_D2s_v3 node (2 vCPU, 8 GB RAM).
+    # In production, increase limits based on the number of scraped targets.
+    resources:
+      requests:
+        cpu: 200m
+        memory: 400Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    # Scrape all ServiceMonitors and PodMonitors across all namespaces.
+    # Required so Prometheus picks up monitors created in the default namespace
+    # when we add Flask app instrumentation later.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+# --------------------------------------------------------------------------
+# Grafana
+# --------------------------------------------------------------------------
+grafana:
+  # Admin password is injected at install time via --set grafana.adminPassword.
+  # Do NOT hardcode a password here — this file is committed to git.
+  # To use a pre-created Kubernetes secret instead:
+  #   admin:
+  #     existingSecret: grafana-admin-secret
+  #     userKey: admin-user
+  #     passwordKey: admin-password
+
+  # Persist dashboards and settings to survive pod restarts.
+  persistence:
+    enabled: true
+    size: 2Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  # ClusterIP keeps Grafana internal — access via kubectl port-forward.
+  # Change to LoadBalancer to expose externally (incurs Azure LB cost).
+  service:
+    type: ClusterIP
+
+  # Pre-load the most useful dashboards for this project.
+  # Dashboard IDs are from grafana.com/grafana/dashboards.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # Kubernetes cluster-level CPU and memory per namespace/pod
+      kubernetes-compute-resources-cluster:
+        gnetId: 19105
+        revision: 1
+        datasource: Prometheus
+
+      # Node-level metrics: CPU, memory, disk, network
+      node-exporter-full:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+
+      # Pod CPU and memory usage across the cluster
+      kubernetes-pod-resources:
+        gnetId: 6781
+        revision: 1
+        datasource: Prometheus
+
+      # Kubernetes deployments — replicas, availability, restarts
+      kubernetes-deployments:
+        gnetId: 8588
+        revision: 1
+        datasource: Prometheus
+
+# --------------------------------------------------------------------------
+# Alertmanager
+# --------------------------------------------------------------------------
+# Disabled for now — no notification channels configured yet.
+# Re-enable and configure receivers (Slack, email, PagerDuty) when ready.
+alertmanager:
+  enabled: false
+
+# --------------------------------------------------------------------------
+# Node Exporter — collects host-level metrics from every node
+# --------------------------------------------------------------------------
+nodeExporter:
+  enabled: true
+
+# --------------------------------------------------------------------------
+# kube-state-metrics — exposes Kubernetes object state (replicas, conditions)
+# --------------------------------------------------------------------------
+kubeStateMetrics:
+  enabled: true
+
+# --------------------------------------------------------------------------
+# Application metrics (Flask services) — enable later
+# --------------------------------------------------------------------------
+# To scrape metrics from the Flask services:
+# 1. Add prometheus-client to each service's requirements.txt
+# 2. Expose a /metrics endpoint in each Flask app
+# 3. Uncomment the ServiceMonitor below and apply it
+#
+# additionalServiceMonitors:
+#   - name: flask-services
+#     selector:
+#       matchLabels:
+#         monitoring: "true"
+#     namespaceSelector:
+#       matchNames:
+#         - default
+#     endpoints:
+#       - port: http
+#         path: /metrics
+#         interval: 15s
