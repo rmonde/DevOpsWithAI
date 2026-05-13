@@ -4,6 +4,7 @@ import psycopg2
 
 app = Flask(__name__)
 
+# Endpoint to fetch all books
 @app.route('/books', methods=['GET'])
 def get_books():
     # Implement logic to fetch books from the database

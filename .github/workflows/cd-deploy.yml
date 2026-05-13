@@ -1,0 +1,110 @@
+name: CD Deploy to AKS
+
+# Triggers only after the CI workflow completes successfully on main.
+# This guarantees images are already built and pushed to ACR before we deploy.
+# workflow_run is the correct trigger here — it chains workflows without
+# coupling them into a single file, keeping CI and CD independently readable.
+on:
+  workflow_run:
+    workflows: ["Docker Build and Push CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+# id-token: write — required for OIDC login to Azure.
+# contents: read  — required for actions/checkout.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    # Only run if the CI workflow actually succeeded — skip if it failed or was cancelled.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # OIDC login — same service principal used by the CI workflow.
+      # Requires "Azure Kubernetes Service Cluster User Role" on the AKS cluster
+      # in addition to the AcrPush role used by CI.
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Fetches kubeconfig and merges it into ~/.kube/config so kubectl works.
+      # --overwrite-existing prevents failure if a stale config entry exists.
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} \
+            --name ${{ secrets.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      # Apply config and storage manifests first — deployments depend on these.
+      # kubectl apply is idempotent: safe to run on every deploy even if unchanged.
+      - name: Apply ConfigMap and PVC
+        run: |
+          kubectl apply -f k8s/configmap.yml
+          kubectl apply -f k8s/db-pvc.yml
+
+      # Create the DB credentials secret from GitHub secrets instead of committing
+      # credentials to the repo. --dry-run=client | kubectl apply is idempotent:
+      # it creates the secret on first deploy and updates it on subsequent deploys
+      # without erroring if it already exists.
+      - name: Create DB credentials secret
+        run: |
+          kubectl create secret generic devopswithai-secret \
+            --from-literal=DB_USERNAME=${{ secrets.DB_USERNAME }} \
+            --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # Deploy the database first and wait for it to be ready before app services start.
+      # This mirrors the init container behaviour but at the workflow level — if the DB
+      # pod never becomes ready, the workflow fails here rather than leaving app pods
+      # stuck in init for an unbounded amount of time.
+      - name: Deploy database
+        run: |
+          kubectl apply -f k8s/db-deployment.yml
+          kubectl apply -f k8s/db-service.yml
+          kubectl rollout status deployment/db-deployment --timeout=120s
+
+      # Deploy all three application services in parallel (kubectl apply is non-blocking).
+      # rollout status waits until the new pods are Ready before the step succeeds,
+      # so a bad image or crashing container will fail the workflow immediately.
+      - name: Deploy application services
+        run: |
+          kubectl apply -f k8s/auth-deployment.yml
+          kubectl apply -f k8s/auth-service.yml
+          kubectl apply -f k8s/books-deployment.yml
+          kubectl apply -f k8s/books-service.yml
+          kubectl apply -f k8s/user-deployment.yml
+          kubectl apply -f k8s/user-service.yml
+          kubectl rollout status deployment/auth-deployment --timeout=120s
+          kubectl rollout status deployment/books-deployment --timeout=120s
+          kubectl rollout status deployment/user-deployment --timeout=120s
+
+      # Deploy monitoring stack — idempotent Helm upgrade so it is applied on
+      # first deploy and kept in sync on subsequent deploys.
+      # Grafana password is injected from GitHub secrets, never stored in the values file.
+      - name: Deploy monitoring stack
+        run: |
+          kubectl apply -f k8s/monitoring/namespace.yml
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --values k8s/monitoring/kube-prometheus-stack-values.yaml \
+            --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
+            --wait \
+            --timeout 5m
+
+      - name: Log out from Azure
+        if: always()
+        run: az logout

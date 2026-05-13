@@ -1,6 +1,5 @@
 name: Docker Build and Push CI
 
-# Triggers: validate every PR against main, push images only when code lands on main.
 on:
   push:
     branches:
@@ -9,7 +8,6 @@ on:
     branches:
       - main
 
-# Explicitly restrict the GitHub Actions token to only what is needed.
 # id-token: write — required for OIDC login to Azure (no stored passwords).
 # contents: read  — required for actions/checkout.
 permissions:
@@ -20,18 +18,9 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    # strategy.matrix — instead of writing identical build steps 4 times (once per service),
-    # the matrix defines a list of variables. GitHub Actions reads the list and automatically
-    # spawns one independent job per entry, all running IN PARALLEL.
-    #
-    # Each job gets a unique value of matrix.service, so:
-    #   matrix.service.name    → "auth-service", "books-service", etc.
-    #   matrix.service.context → the correct Dockerfile directory for that service
-    #
-    # Benefits:
-    #   - Parallel execution: all 4 images build at the same time (~2 min total vs ~8 min sequential)
-    #   - Single source of truth: add a new service by adding one entry here, not copying 10 lines
-    #   - Independent failures: if books-service fails, auth-service still completes
+    # strategy.matrix spawns one independent parallel job per service entry.
+    # Each job gets its own matrix.service.name and matrix.service.context values.
+    # Adding a new service = adding one entry here, not copy-pasting steps.
     strategy:
       matrix:
         service:
@@ -51,46 +40,53 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # OIDC Workload Identity Federation — GitHub requests a short-lived token from Azure
-      # per run. No static passwords stored in GitHub secrets.
-      # One-time setup required: create an Azure AD app + federated credential for this repo.
-      # Secrets needed in GitHub: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID.
+      # Azure login is skipped on pull_request — no point authenticating if we are not pushing.
+      # On PRs we only build to validate the Dockerfile is correct.
       - name: Log in to Azure
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ACR_NAME is the short registry name (e.g. "acrdevopswithai"), not the full login server.
-      # az acr login uses the Azure token from the step above — no separate ACR password needed.
+      # ACR_NAME is the short registry name (e.g. "devopswithai"), not the full login server URL.
+      # az acr login uses the Azure token above — no separate ACR password needed.
       - name: Log in to ACR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
-      # push condition: build on every PR (proves the Dockerfile is valid) but only push
-      # when the trigger is an actual merge to main — PRs must never write to the registry.
-      #
-      # Two tags are pushed on merge:
-      #   :github.sha — immutable, points to the exact commit that produced this image
-      #   :latest     — mutable, always points to the most recent main-branch image
-      #
-      # cache-from/cache-to: each service gets its own cache scope in the GitHub Actions cache.
-      # On a re-run, unchanged layers are restored from cache instead of rebuilt from scratch,
-      # cutting build time significantly. The scope key prevents services from overwriting
-      # each other's cache.
-      - name: Build and push Docker image
+      # PR builds — build only to verify the Dockerfile is valid.
+      # outputs: type=cacheonly stores the result in the Buildx cache only.
+      # This suppresses the "No output specified" warning that appears when push: false
+      # is used with the docker-container driver without an explicit output target.
+      - name: Build (PR — validate Dockerfile only, no push)
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: false
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+
+      # Main branch builds — build and push two tags:
+      #   :github.sha — immutable, tied to the exact commit that produced this image
+      #   :latest     — mutable, always points to the most recent main-branch image
+      - name: Build and push (main — push to ACR)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          push: true
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.name }}:${{ github.sha }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.name }}:latest
           cache-from: type=gha,scope=${{ matrix.service.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
 
-      # if: always() ensures logout runs even if a previous step failed,
-      # so the Azure session is never left active after the job ends.
+      # if: always() ensures logout runs even if a previous step failed.
+      # Condition also checks we actually logged in — no point logging out if we never logged in.
       - name: Log out from Azure
-        if: always()
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: az logout
