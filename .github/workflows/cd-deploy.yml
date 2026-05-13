@@ -1,16 +1,24 @@
 name: CD Deploy to AKS
 
-# Triggers only after the CI workflow completes successfully on main.
-# This guarantees images are already built and pushed to ACR before we deploy.
-# workflow_run is the correct trigger here — it chains workflows without
-# coupling them into a single file, keeping CI and CD independently readable.
+# DISABLED: ArgoCD now manages deployments (Option C GitOps pattern).
+# The CI workflow commits updated image SHA tags to k8s/ manifests, and ArgoCD
+# detects the change and syncs the cluster automatically. This workflow is kept
+# here for reference and can be re-enabled if ArgoCD is removed.
+#
+# Original trigger (do not restore without also disabling ArgoCD sync):
+# on:
+#   workflow_run:
+#     workflows: ["Docker Build and Push CI"]
+#     types:
+#       - completed
+#     branches:
+#       - main
 on:
-  workflow_run:
-    workflows: ["Docker Build and Push CI"]
-    types:
-      - completed
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why are you running the manual CD workflow? (ArgoCD should handle deploys)"
+        required: true
 
 # id-token: write — required for OIDC login to Azure.
 # contents: read  — required for actions/checkout.
@@ -20,8 +28,6 @@ permissions:
 
 jobs:
   deploy:
-    # Only run if the CI workflow actually succeeded — skip if it failed or was cancelled.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:

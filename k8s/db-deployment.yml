@@ -36,9 +36,15 @@ spec:
             secretKeyRef:
               name: devopswithai-secret
               key: DB_PASSWORD
+        # Azure disk mounts create a lost+found directory at the root of the mount point.
+        # Mounting directly at /var/lib/postgresql/data causes Postgres initdb to fail
+        # ("directory is not empty"). Mounting at the parent and setting PGDATA to the
+        # subdirectory keeps lost+found out of Postgres's data directory.
+        - name: PGDATA
+          value: /var/lib/postgresql/data
         volumeMounts:
         - name: db-storage
-          mountPath: /var/lib/postgresql/data
+          mountPath: /var/lib/postgresql
       volumes:
       - name: db-storage
         persistentVolumeClaim:

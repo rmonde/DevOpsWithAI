@@ -90,3 +90,52 @@ jobs:
       - name: Log out from Azure
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: az logout
+
+  # Option C GitOps pattern: after ALL four build jobs succeed, update deployment
+  # manifests with the exact SHA image tag and commit back to main. ArgoCD detects
+  # the manifest change and syncs the cluster to the new image — no manual rollout needed.
+  #
+  # A separate job (not another matrix step) avoids four parallel jobs trying to
+  # git-push the same files simultaneously, which would cause merge conflicts.
+  update-manifests:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    # contents: write is required to commit and push manifest changes.
+    # This overrides the top-level contents: read for this job only.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # GITHUB_TOKEN lets this job push commits. The token is scoped to this
+          # repo and expires when the workflow finishes — no stored credentials needed.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Full history avoids "shallow update not allowed" push failures.
+          fetch-depth: 0
+
+      - name: Update image tags to SHA
+        run: |
+          SHA=${{ github.sha }}
+          ACR=${{ secrets.ACR_LOGIN_SERVER }}
+          # Replace the image tag in each deployment manifest with the exact SHA.
+          # Pattern matches everything after the colon so it replaces both :latest
+          # and any previous SHA from an earlier run.
+          sed -i "s|${ACR}/auth-service:.*|${ACR}/auth-service:${SHA}|g" k8s/auth-deployment.yml
+          sed -i "s|${ACR}/books-service:.*|${ACR}/books-service:${SHA}|g" k8s/books-deployment.yml
+          sed -i "s|${ACR}/user-service:.*|${ACR}/user-service:${SHA}|g" k8s/user-deployment.yml
+          sed -i "s|${ACR}/db-service:.*|${ACR}/db-service:${SHA}|g" k8s/db-deployment.yml
+
+      - name: Commit and push manifest changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/auth-deployment.yml k8s/books-deployment.yml \
+                  k8s/user-deployment.yml k8s/db-deployment.yml
+          # [skip ci] prevents this commit from re-triggering the CI workflow.
+          # --allow-empty avoids failure if re-running the same commit (SHA unchanged).
+          git commit --allow-empty -m "ci: update image tags to ${{ github.sha }} [skip ci]"
+          git push
