@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devopswithai
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/rmonde/DevOpsWithAI.git
+    targetRevision: main
+    path: k8s
+    directory:
+      # Recurse is off — ArgoCD only reads files directly in k8s/, not subdirs.
+      # This excludes k8s/monitoring/ (managed by Helm) and k8s/argocd/ (ArgoCD itself).
+      recurse: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      # Automatically sync when ArgoCD detects drift between git and cluster.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
