@@ -53,3 +53,14 @@ variable "acr_registry_name" {
   type        = string
   default     = "acrdevopswithai"
 }
+
+variable "acr_resource_group_name" {
+  description = "Resource group the ACR lives in — can differ from the main AKS resource group"
+  type        = string
+}
+
+variable "acr_sku" {
+  description = "ACR SKU — Basic, Standard, or Premium"
+  type        = string
+  default     = "Standard"
+}

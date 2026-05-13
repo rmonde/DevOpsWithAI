@@ -11,7 +11,7 @@ terraform {
   # Then run: terraform init
   backend "azurerm" {
     resource_group_name  = "rg-devopswithai-tfstate"
-    storage_account_name = "tfstatew0y5zv"
+    storage_account_name = "tfstate7i2czd"
     container_name       = "tfstate"
     key                  = "devopswithai.tfstate"
   }
@@ -42,8 +42,9 @@ module "aks" {
 module "acr" {
   source              = "./modules/acr"
   acr_name            = var.acr_registry_name
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  resource_group_name = var.acr_resource_group_name
+  acr_sku             = var.acr_sku
   tags                = var.tags
 }
 
