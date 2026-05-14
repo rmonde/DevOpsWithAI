@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: db-container
-        image: devopswithai.azurecr.io/db-service:7d218b2cdbd244cbd2fa835991c6fe7ec055af9f
+        image: devopswithai.azurecr.io/db-service:555ed82b5d683db124178198f063299c705ce492
         imagePullPolicy: Always
         ports:
         - containerPort: 5432
