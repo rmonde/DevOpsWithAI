@@ -1,8 +1,15 @@
 import os
 import psycopg2
 from flask import Flask, request, jsonify
+from prometheus_client import make_wsgi_app, Counter
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 app = Flask(__name__)
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+    '/metrics': make_wsgi_app()
+})
+
+http_requests = Counter('http_requests_total', 'Total HTTP Requests', ['method', 'endpoint', 'status_code'])
 
 # This function checks if the provided username and password are valid by querying the PostgreSQL database.
 def valide_user_credentials(username: str, password: str) -> bool:
@@ -33,5 +40,10 @@ def login():
     else:
         return jsonify({"error": "Invalid credentials"}), 401
 
+@app.after_request
+def after_request(response):
+    http_requests.labels(method=request.method, endpoint=request.path, status_code=response.status_code).inc()
+    return response
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    app.run(host="0.0.0.0", port=3000, debug=True)
