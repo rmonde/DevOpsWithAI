@@ -1,8 +1,15 @@
 import os
 from flask import Flask, jsonify, request
 import psycopg2
+from prometheus_client import make_wsgi_app, Counter
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 app = Flask(__name__)
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+    '/metrics': make_wsgi_app()
+})
+
+http_requests = Counter('http_requests_total', 'Total HTTP Requests', ['method', 'endpoint', 'status_code'])
 
 # Endpoint to fetch all books
 @app.route('/books', methods=['GET'])
@@ -55,6 +62,12 @@ def search_books(self, book_name):
 
     return jsonify(books_list)
 
+@app.after_request
+def after_request(response):
+    http_requests.labels(method=request.method, endpoint=request.path, status_code=response.status_code).inc()
+    return response
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3001)
+    app.run(host='0.0.0.0', port=3001, debug=True)
     

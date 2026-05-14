@@ -1,0 +1,58 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: auth-service-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app: auth
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: http
+      interval: 30s
+
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: user-service-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app: user
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: http
+      interval: 30s
+
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: book-service-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app: books
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: http
+      interval: 30s
