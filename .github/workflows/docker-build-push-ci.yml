@@ -65,6 +65,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
+          platforms: linux/amd64,linux/arm64
           push: false
           outputs: type=cacheonly
           cache-from: type=gha,scope=${{ matrix.service.name }}
@@ -78,6 +79,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.name }}:${{ github.sha }}
