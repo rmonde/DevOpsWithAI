@@ -14,6 +14,8 @@ spec:
       labels:
         app: db
     spec:
+    imagePullSecrets:
+    - name: acr-secret
       containers:
       - name: db-container
         image: devopswithai.azurecr.io/db-service:555ed82b5d683db124178198f063299c705ce492
