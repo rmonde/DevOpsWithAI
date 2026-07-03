@@ -24,6 +24,7 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 COPY auth-service.py auth_service.py
 
+# Used non root user to run the application
 USER appuser
 
 EXPOSE 3000
