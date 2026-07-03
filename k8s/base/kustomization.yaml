@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - auth-deployment.yml
+  - auth-service.yml
+  - books-deployment.yml
+  - books-service.yml
+  - db-deployment.yml
+  - db-service.yml
+  - user-deployment.yml
+  - user-service.yml
+  - db-pvc.yml
+  - configmap.yml
+  - secret.yml
