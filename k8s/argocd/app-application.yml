@@ -9,10 +9,9 @@ spec:
   source:
     repoURL: https://github.com/rmonde/DevOpsWithAI.git
     targetRevision: main
-    path: k8s
+    path: k8s/base
     directory:
-      # Recurse is off — ArgoCD only reads files directly in k8s/, not subdirs.
-      # This excludes k8s/monitoring/ (managed by Helm) and k8s/argocd/ (ArgoCD itself).
+      # Recurse is off — base/ contains only flat manifests, no subdirs to recurse into.
       recurse: false
 
   destination:
