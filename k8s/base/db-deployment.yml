@@ -18,7 +18,7 @@ spec:
         - name: acr-secret
       containers:
       - name: db-container
-        image: devopswithai.azurecr.io/db-service:dd048eb1c5ea823776a8fb4b31bdeb68bc74577c
+        image: devopswithai.azurecr.io/db-service:62064bb6fe4bec9effe4babe045ac00155f109bb
         imagePullPolicy: Always
         ports:
         - containerPort: 5432
