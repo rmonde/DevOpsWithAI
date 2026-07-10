@@ -22,7 +22,7 @@ spec:
         command: ['sh', '-c', 'until nc -z db-service 5432; do echo "waiting for db"; sleep 2; done']
       containers:
       - name: auth-container
-        image: devopswithai.azurecr.io/auth-service:ffe19da262db98a4699f074d03fdcb715f05bc62
+        image: devopswithai.azurecr.io/auth-service:d528c62ec96b5aa915d6dd2870fd6ee7028ddb12
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
