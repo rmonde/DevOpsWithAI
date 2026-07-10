@@ -59,6 +59,12 @@ variable "acr_resource_group_name" {
   type        = string
 }
 
+variable "acr_location" {
+  description = "Azure region for the ACR — can differ from the AKS region (ACR location is immutable once created)"
+  type        = string
+  default     = "eastus"
+}
+
 variable "acr_sku" {
   description = "ACR SKU — Basic, Standard, or Premium"
   type        = string
