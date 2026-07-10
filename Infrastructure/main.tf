@@ -42,7 +42,7 @@ module "aks" {
 module "acr" {
   source              = "./modules/acr"
   acr_name            = var.acr_registry_name
-  location            = var.location
+  location            = var.acr_location
   resource_group_name = var.acr_resource_group_name
   acr_sku             = var.acr_sku
   tags                = var.tags
